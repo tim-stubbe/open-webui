@@ -6,20 +6,22 @@ receive the bridge credential and cannot choose an arbitrary upstream URL.
 
 import logging
 import os
+import json
+from pathlib import Path
 from typing import Literal
 
 import aiohttp
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, model_validator
 
+from open_webui.config import DATA_DIR
 from open_webui.utils.auth import get_admin_user
 
 log = logging.getLogger(__name__)
 router = APIRouter()
 
-COMPUTER_USE_BRIDGE_URL = os.getenv('COMPUTER_USE_BRIDGE_URL', '').rstrip('/')
-COMPUTER_USE_BRIDGE_TOKEN = os.getenv('COMPUTER_USE_BRIDGE_TOKEN', '')
 COMPUTER_USE_TIMEOUT_SECONDS = float(os.getenv('COMPUTER_USE_TIMEOUT_SECONDS', '10'))
+COMPUTER_USE_CONFIG_FILE = Path(DATA_DIR) / 'computer-use.json'
 
 
 class ComputerAction(BaseModel):
@@ -58,24 +60,36 @@ class ComputerAction(BaseModel):
         return self
 
 
-def _bridge_headers() -> dict[str, str]:
-    return {'Authorization': f'Bearer {COMPUTER_USE_BRIDGE_TOKEN}'}
+def _bridge_config() -> tuple[str, str]:
+    """Read bridge credentials at request time so they can be rotated safely."""
+    url = os.getenv('COMPUTER_USE_BRIDGE_URL', '').rstrip('/')
+    token = os.getenv('COMPUTER_USE_BRIDGE_TOKEN', '')
+    if url and token:
+        return url, token
+
+    try:
+        config = json.loads(COMPUTER_USE_CONFIG_FILE.read_text(encoding='utf-8'))
+        return str(config.get('url', '')).rstrip('/'), str(config.get('token', ''))
+    except (OSError, ValueError, TypeError):
+        return '', ''
 
 
-def _ensure_configured() -> None:
-    if not COMPUTER_USE_BRIDGE_URL or not COMPUTER_USE_BRIDGE_TOKEN:
+def _ensure_configured() -> tuple[str, str]:
+    bridge_url, bridge_token = _bridge_config()
+    if not bridge_url or not bridge_token:
         raise HTTPException(status_code=503, detail='Computer use bridge is not configured')
+    return bridge_url, bridge_token
 
 
 async def _bridge_request(method: str, path: str, payload: dict | None = None) -> dict:
-    _ensure_configured()
+    bridge_url, bridge_token = _ensure_configured()
     timeout = aiohttp.ClientTimeout(total=COMPUTER_USE_TIMEOUT_SECONDS)
     try:
         async with aiohttp.ClientSession(timeout=timeout, trust_env=False) as session:
             async with session.request(
                 method,
-                f'{COMPUTER_USE_BRIDGE_URL}{path}',
-                headers=_bridge_headers(),
+                f'{bridge_url}{path}',
+                headers={'Authorization': f'Bearer {bridge_token}'},
                 json=payload,
                 allow_redirects=False,
             ) as response:

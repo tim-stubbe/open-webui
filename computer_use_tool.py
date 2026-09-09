@@ -8,6 +8,7 @@ required_open_webui_version: 0.11.0
 
 import json
 import os
+from pathlib import Path
 
 import aiohttp
 from pydantic import BaseModel, Field
@@ -22,10 +23,23 @@ class Tools:
     def __init__(self):
         self.valves = self.Valves()
 
+    def _bridge_config(self) -> tuple[str, str]:
+        url = self.valves.bridge_url.rstrip('/')
+        token = self.valves.bridge_token
+        if url and token:
+            return url, token
+
+        config_path = Path(os.getenv('DATA_DIR', '/app/backend/data')) / 'computer-use.json'
+        try:
+            config = json.loads(config_path.read_text(encoding='utf-8'))
+            return str(config.get('url', '')).rstrip('/'), str(config.get('token', ''))
+        except (OSError, ValueError, TypeError):
+            return '', ''
+
     async def _request(self, method: str, path: str, payload: dict | None = None) -> str:
         """Call the fixed local bridge endpoint without exposing its token."""
-        base_url = self.valves.bridge_url.rstrip('/')
-        if not base_url or not self.valves.bridge_token:
+        base_url, bridge_token = self._bridge_config()
+        if not base_url or not bridge_token:
             return json.dumps({'error': 'Computer-use bridge is not configured'})
         timeout = aiohttp.ClientTimeout(total=self.valves.timeout_seconds)
         try:
@@ -33,7 +47,7 @@ class Tools:
                 async with session.request(
                     method,
                     f'{base_url}{path}',
-                    headers={'Authorization': f'Bearer {self.valves.bridge_token}'},
+                    headers={'Authorization': f'Bearer {bridge_token}'},
                     json=payload,
                     allow_redirects=False,
                 ) as response:
