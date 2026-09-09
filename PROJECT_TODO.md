@@ -35,3 +35,12 @@
 - [ ] Eigenes Container-Image bauen und getrennt von der laufenden Open-WebUI-Installation testen.
 - [ ] Änderungen klein und nachvollziehbar halten.
 - [ ] Sicherheitsupdates aus dem offiziellen Open-WebUI-Repository gezielt übernehmen.
+
+## TrueNAS-Browser (2026-09-09)
+
+- [x] Open WebUI dauerhaft auf `ghcr.io/tim-stubbe/open-webui:computer-use` umgestellt.
+- [x] Internen Browserless-Chromium-Dienst auf TrueNAS installiert (kein veröffentlichter Port, Token geschützt, Autostart).
+- [x] `Local Computer Use` um `browse_website` und `click_website` erweitert.
+- [x] Browserzugriff mit einer echten JavaScript-gerenderten Webseite getestet.
+- [x] Werkzeug dem Modell `Nur lokal` als Standardwerkzeug zugeordnet.
+- [ ] Browserprofil/Sitzungen für Webseiten mit Login später gezielt ergänzen.

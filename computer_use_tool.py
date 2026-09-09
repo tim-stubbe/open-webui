@@ -8,6 +8,7 @@ required_open_webui_version: 0.11.0
 
 import json
 import os
+import urllib.parse
 from pathlib import Path
 
 import aiohttp
@@ -18,7 +19,7 @@ class Tools:
     class Valves(BaseModel):
         bridge_url: str = Field(default=os.getenv('COMPUTER_USE_BRIDGE_URL', ''), description='Mac bridge URL')
         bridge_token: str = Field(default=os.getenv('COMPUTER_USE_BRIDGE_TOKEN', ''), description='Mac bridge token')
-        timeout_seconds: int = Field(default=10, ge=2, le=30)
+        timeout_seconds: int = Field(default=20, ge=2, le=60)
 
     def __init__(self):
         self.valves = self.Valves()
@@ -35,6 +36,84 @@ class Tools:
             return str(config.get('url', '')).rstrip('/'), str(config.get('token', ''))
         except (OSError, ValueError, TypeError):
             return '', ''
+
+
+    def _server_browser_config(self) -> tuple[str, str]:
+        config_path = Path(os.getenv('DATA_DIR', '/app/backend/data')) / 'browser-use.json'
+        try:
+            config = json.loads(config_path.read_text(encoding='utf-8'))
+            return str(config.get('url', '')).rstrip('/'), str(config.get('token', ''))
+        except (OSError, ValueError, TypeError):
+            return '', ''
+
+    @staticmethod
+    def _validate_url(url: str) -> str:
+        parsed = urllib.parse.urlparse(url)
+        if parsed.scheme not in {'http', 'https'} or not parsed.netloc or parsed.username or parsed.password:
+            raise ValueError('Only HTTP(S) URLs without embedded credentials are allowed')
+        return url
+
+    async def _browserless_function(self, code: str, context: dict) -> str:
+        base_url, token = self._server_browser_config()
+        if not base_url or not token:
+            return json.dumps({'error': 'TrueNAS browser is not configured'})
+        timeout = aiohttp.ClientTimeout(total=max(30, self.valves.timeout_seconds))
+        try:
+            async with aiohttp.ClientSession(timeout=timeout, trust_env=False) as session:
+                async with session.post(
+                    f'{base_url}/chromium/function',
+                    params={'token': token},
+                    json={'code': code, 'context': context},
+                    allow_redirects=False,
+                ) as response:
+                    data = await response.text()
+                    if response.status >= 400:
+                        return json.dumps({'error': f'TrueNAS browser returned HTTP {response.status}'})
+                    return data[:30000]
+        except (aiohttp.ClientError, TimeoutError):
+            return json.dumps({'error': 'TrueNAS browser is unavailable'})
+
+    async def browse_website(self, url: str) -> str:
+        """Open a public website in Chromium on TrueNAS and return its rendered text and links.
+
+        :param url: Full HTTP(S) URL without embedded credentials.
+        """
+        try:
+            url = self._validate_url(url)
+        except ValueError as exc:
+            return json.dumps({'error': str(exc)})
+        code = """export default async ({ page, context }) => {
+          await page.goto(context.url, { waitUntil: 'domcontentloaded', timeout: 20000 });
+          await new Promise(r => setTimeout(r, 800));
+          const data = await page.evaluate(() => ({
+            title: document.title, url: location.href,
+            text: (document.body?.innerText || '').slice(0, 20000),
+            links: [...document.querySelectorAll('a[href]')].slice(0, 80).map(a => ({text: (a.innerText || '').trim().slice(0, 160), href: a.href}))
+          }));
+          return { data, type: 'application/json' };
+        };"""
+        return await self._browserless_function(code, {'url': url})
+
+    async def click_website(self, url: str, selector: str) -> str:
+        """Open a website on TrueNAS, click an exact CSS selector, and return the resulting page text.
+
+        :param url: Full HTTP(S) page URL.
+        :param selector: Exact CSS selector found on the page.
+        """
+        try:
+            url = self._validate_url(url)
+        except ValueError as exc:
+            return json.dumps({'error': str(exc)})
+        if not selector or len(selector) > 500:
+            return json.dumps({'error': 'Invalid selector'})
+        code = """export default async ({ page, context }) => {
+          await page.goto(context.url, { waitUntil: 'domcontentloaded', timeout: 20000 });
+          await page.waitForSelector(context.selector, { timeout: 8000 });
+          await page.click(context.selector);
+          await new Promise(r => setTimeout(r, 1000));
+          return { data: { title: await page.title(), url: page.url(), text: (await page.$eval('body', e => e.innerText)).slice(0, 20000) }, type: 'application/json' };
+        };"""
+        return await self._browserless_function(code, {'url': url, 'selector': selector})
 
     async def _request(self, method: str, path: str, payload: dict | None = None) -> str:
         """Call the fixed local bridge endpoint without exposing its token."""
