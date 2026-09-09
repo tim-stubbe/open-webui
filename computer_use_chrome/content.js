@@ -17,13 +17,36 @@ async function request(path, options = {}) {
   return response.json();
 }
 
+function uniqueSelector(element) {
+  if (element.id) return `#${CSS.escape(element.id)}`;
+  for (const attribute of ['data-testid', 'name', 'aria-label']) {
+    const value = element.getAttribute(attribute);
+    if (value) {
+      const candidate = `${element.tagName.toLowerCase()}[${attribute}="${CSS.escape(value)}"]`;
+      if (document.querySelectorAll(candidate).length === 1) return candidate;
+    }
+  }
+  const parts = [];
+  let current = element;
+  while (current && current !== document.body && parts.length < 5) {
+    let part = current.tagName.toLowerCase();
+    const siblings = current.parentElement
+      ? [...current.parentElement.children].filter((item) => item.tagName === current.tagName)
+      : [];
+    if (siblings.length > 1) part += `:nth-of-type(${siblings.indexOf(current) + 1})`;
+    parts.unshift(part);
+    current = current.parentElement;
+  }
+  return parts.join(' > ');
+}
+
 function pageState() {
   const interactive = [...document.querySelectorAll('a,button,input,textarea,select,[role="button"]')]
     .filter((element) => element.getClientRects().length > 0)
     .slice(0, 150)
     .map((element) => ({
       tag: element.tagName.toLowerCase(),
-      selector: element.id ? `#${CSS.escape(element.id)}` : null,
+      selector: uniqueSelector(element),
       text: (element.innerText || element.getAttribute('aria-label') || element.placeholder || '').trim().slice(0, 160)
     }));
   return {
@@ -59,6 +82,10 @@ async function execute(command) {
 async function loop() {
   while (true) {
     try {
+      if (document.visibilityState !== 'visible') {
+        await sleep(750);
+        continue;
+      }
       await request('/v1/browser/state', { method: 'POST', body: JSON.stringify(pageState()) });
       const { command } = await request('/v1/browser/next');
       if (command) {
