@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "Open WebUI Local Computer Use",
+  "version": "0.1.0",
+  "description": "Connects the active Chrome tab to the local Open WebUI computer-use bridge.",
+  "permissions": ["storage"],
+  "host_permissions": ["http://127.0.0.1:8765/*", "http://localhost:8765/*"],
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "options_page": "options.html",
+  "action": {
+    "default_title": "Open WebUI Computer Use"
+  }
+}

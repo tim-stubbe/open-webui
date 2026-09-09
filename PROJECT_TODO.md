@@ -19,14 +19,15 @@
 
 ## Computer Use
 
-- [ ] Eigene Open-WebUI-Erweiterung für lokale Computersteuerung entwerfen.
-- [ ] Computer-Use-Dienst als getrennten lokalen Prozess auf dem Mac betreiben.
-- [ ] Sichere Verbindung zwischen Open WebUI und dem Mac-Dienst einrichten.
-- [ ] Werkzeuge zuerst auf Bildschirm lesen, klicken, tippen und scrollen begrenzen.
-- [ ] Zugriffe auf erlaubte Apps und Seiten beschränken.
+- [x] Eigene Open-WebUI-Erweiterung für lokale Computersteuerung entwerfen.
+- [x] Computer-Use-Dienst als getrennten lokalen Prozess auf dem Mac vorbereiten.
+- [x] Sichere, tokenbasierte Verbindung zwischen Open WebUI und dem Mac-Dienst vorbereiten.
+- [x] Werkzeuge auf Bildschirm lesen, klicken, tippen und scrollen begrenzen.
+- [x] Browseraktionen technisch auf HTTP(S), feste Aktionen und vorhandene CSS-Selektoren beschränken.
+- [ ] Zugriffe zusätzlich auf eine konfigurierbare Liste erlaubter Apps und Seiten beschränken.
 - [ ] Für sensible oder irreversible Aktionen eine Bestätigung verlangen.
 - [ ] Werkzeugaufrufe und Ergebnisse protokollieren, ohne Passwörter oder andere Secrets zu speichern.
-- [ ] Stopp-Schalter und feste Zeitlimits einbauen.
+- [x] Eingabe-Stopp über `COMPUTER_USE_ALLOW_INPUT` und feste Zeitlimits einbauen.
 - [ ] Zuerst in einer Testumgebung prüfen, danach in die TrueNAS-Installation übernehmen.
 
 ## Pflege des Forks

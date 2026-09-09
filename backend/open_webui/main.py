@@ -150,6 +150,7 @@ from open_webui.routers import (
     calendar,
     channels,
     chats,
+    computer_use,
     configs,
     evaluations,
     files,
@@ -858,6 +859,7 @@ app.include_router(utils.router, prefix='/api/v1/utils', tags=['utils'])
 app.include_router(terminals.router, prefix='/api/v1/terminals', tags=['terminals'])
 app.include_router(automations.router, prefix='/api/v1/automations', tags=['automations'])
 app.include_router(calendar.router, prefix='/api/v1/calendars', tags=['calendars'])
+app.include_router(computer_use.router, prefix='/api/v1/computer-use', tags=['computer-use'])
 
 # SCIM 2.0 API for identity management
 if ENABLE_SCIM:
