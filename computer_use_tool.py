@@ -1,8 +1,8 @@
 """
-title: Local Computer Use
+title: TrueNAS Browser and Local Computer Use
 author: Tim Stubbe
 version: 0.1.0
-description: Read and control the connected Mac or Chrome tab through the local bridge.
+description: Browse public websites in Chromium on TrueNAS even when the Mac is offline; optionally control a connected Mac.
 required_open_webui_version: 0.11.0
 """
 
@@ -76,6 +76,9 @@ class Tools:
     async def browse_website(self, url: str) -> str:
         """Open a public website in Chromium on TrueNAS and return its rendered text and links.
 
+        Use this for website access whenever the Mac may be offline. It does not
+        require the Mac bridge and is the default browser-reading tool.
+
         :param url: Full HTTP(S) URL without embedded credentials.
         """
         try:
@@ -96,6 +99,8 @@ class Tools:
 
     async def click_website(self, url: str, selector: str) -> str:
         """Open a website on TrueNAS, click an exact CSS selector, and return the resulting page text.
+
+        This runs entirely on TrueNAS and does not require the Mac.
 
         :param url: Full HTTP(S) page URL.
         :param selector: Exact CSS selector found on the page.
@@ -140,6 +145,35 @@ class Tools:
     async def computer_status(self) -> str:
         """Check whether the private Mac computer-use bridge and input controls are available."""
         return await self._request('GET', '/v1/status')
+
+    async def read_computer_screen(self) -> str:
+        """Read visible text on the Mac screen with click coordinates and the active application.
+
+        Call this immediately before clicking. Coordinates can change whenever the screen changes.
+        """
+        return await self._request('GET', '/v1/observe-text')
+
+    async def click_computer(self, x: int, y: int) -> str:
+        """Click a visible Mac screen coordinate returned by read_computer_screen.
+
+        :param x: Horizontal screen coordinate from the latest observation.
+        :param y: Vertical screen coordinate from the latest observation.
+        """
+        return await self._request('POST', '/v1/actions', {'action': 'click', 'x': x, 'y': y})
+
+    async def type_on_computer(self, text: str) -> str:
+        """Type text into the currently focused Mac control.
+
+        :param text: Text the user explicitly requested. Never type passwords, tokens or other secrets.
+        """
+        return await self._request('POST', '/v1/actions', {'action': 'type', 'text': text})
+
+    async def scroll_computer(self, delta_y: int) -> str:
+        """Scroll the current Mac window after observing it.
+
+        :param delta_y: Amount from -4000 to 4000. Positive scrolls up and negative scrolls down.
+        """
+        return await self._request('POST', '/v1/actions', {'action': 'scroll', 'delta_y': delta_y})
 
     async def read_browser(self) -> str:
         """Read the active Chrome page URL, title, visible text and interactive elements before acting."""
